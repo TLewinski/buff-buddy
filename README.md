@@ -73,7 +73,19 @@ Foundation** is complete:
 - ✅ Pet detail: hero sprite, rarity, stage, level + XP bar, blurb
 - ✅ Equip action (owned pets), with the choice reflected on Home + grid
 
-Phases 6–7 (eggs, store) follow.
+**Phase 6 — Eggs + Hatching** is complete:
+
+- ✅ Egg earning rules: 7-day streak → Standard, 30-day streak → Epic, weekly
+  goal (4 workouts Mon–Sun) → Standard (once per week), granted on finish
+- ✅ Hatch sequence (Reanimated): shake → crack → flash → reveal
+- ✅ Odds-based roll per egg type; new pets join the collection, duplicates
+  convert to coins by rarity
+- ✅ Hatch screen shows unhatched eggs + live "how to earn" progress, plus a
+  dev-only "Add 10 eggs" button for testing
+
+Phase 7 (store) follows.
+
+> Phase 6 adds `0003_weekly_egg.sql` — apply it alongside the earlier migrations.
 
 ### Database setup (required for Phase 2+)
 

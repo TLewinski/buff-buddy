@@ -12,6 +12,7 @@ export interface Profile {
   longest_streak: number;
   equipped_pet_id: string | null;
   last_workout_date: string | null;
+  weekly_egg_week: string | null;
   created_at: string;
   updated_at: string;
 }

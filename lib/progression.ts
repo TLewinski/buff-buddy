@@ -83,6 +83,20 @@ export function localDateKey(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Local Monday 00:00 of the week containing `d` (Mon–Sun calendar week). */
+export function startOfWeek(d: Date = new Date()): Date {
+  const x = new Date(d);
+  const mondayBased = (x.getDay() + 6) % 7; // Sun=6 ... Mon=0
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - mondayBased);
+  return x;
+}
+
+/** Stable identifier for a Mon–Sun week (its Monday's date key). */
+export function weekKey(d: Date = new Date()): string {
+  return localDateKey(startOfWeek(d));
+}
+
 /** Whole-day difference between two YYYY-MM-DD keys (b - a). */
 export function dayDiff(aKey: string, bKey: string): number {
   const a = new Date(`${aKey}T00:00:00`);

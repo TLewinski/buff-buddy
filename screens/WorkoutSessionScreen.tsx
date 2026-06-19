@@ -287,6 +287,11 @@ export function WorkoutSessionScreen() {
                   🔥 {summary.result.streakCurrent}-day streak
                 </Text>
               ) : null}
+              {summary.result.eggsStandard + summary.result.eggsEpic > 0 ? (
+                <Text style={[styles.summaryHint, { color: colors.gold }]}>
+                  🥚 You earned an egg! Open it in the Hatch tab.
+                </Text>
+              ) : null}
 
               <Button
                 label="Done"

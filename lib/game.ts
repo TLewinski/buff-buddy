@@ -11,18 +11,24 @@
 
 import {
   DAILY_CHALLENGES,
+  EGG_RULES,
   REWARDS,
   type DailyChallengeDef,
+  type EggType,
+  type Rarity,
   type Stage,
 } from '../config/economy';
 import { getPet, PETS } from '../pets/registry';
-import type { DailyChallenge, Profile, UserPet } from './database.types';
+import type { DailyChallenge, Profile } from './database.types';
+import { duplicateCoins, rollHatch } from './hatch';
 import {
   applyXp,
   challengeForDate,
   challengeProgressDelta,
   computeStreak,
   localDateKey,
+  startOfWeek,
+  weekKey,
   xpProgress,
   type XpProgress,
 } from './progression';
@@ -267,6 +273,158 @@ export async function fetchHomeData(userId: string): Promise<HomeData> {
 }
 
 // ---------------------------------------------------------------------------
+// Eggs + hatching
+// ---------------------------------------------------------------------------
+
+export interface EggData {
+  standard: number;
+  epic: number;
+  total: number;
+  currentStreak: number;
+  workoutsThisWeek: number;
+  weeklyTarget: number;
+}
+
+/** Count of workouts in the current Mon–Sun week. */
+async function countWorkoutsThisWeek(userId: string): Promise<number> {
+  const { count } = await supabase
+    .from('workouts')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('started_at', startOfWeek().toISOString());
+  return count ?? 0;
+}
+
+/** Everything the Hatch screen renders: unhatched egg counts + progress. */
+export async function fetchEggData(userId: string): Promise<EggData> {
+  const [{ data: eggs }, { data: profile }, workoutsThisWeek] = await Promise.all([
+    supabase.from('eggs').select('type').eq('user_id', userId).is('hatched_at', null),
+    supabase.from('profiles').select('current_streak').eq('id', userId).single(),
+    countWorkoutsThisWeek(userId),
+  ]);
+
+  const standard = (eggs ?? []).filter((e) => e.type === 'standard').length;
+  const epic = (eggs ?? []).filter((e) => e.type === 'epic').length;
+
+  return {
+    standard,
+    epic,
+    total: standard + epic,
+    currentStreak: profile?.current_streak ?? 0,
+    workoutsThisWeek,
+    weeklyTarget: EGG_RULES.workoutsPerWeekForEgg,
+  };
+}
+
+export interface HatchResult {
+  ok: boolean;
+  error?: string;
+  petId: string;
+  petName: string;
+  rarity: Rarity;
+  isDuplicate: boolean;
+  coins: number; // duplicate conversion coins (0 when new)
+}
+
+/**
+ * Hatch one unhatched egg: roll a pet from its odds, then either add it to the
+ * collection (new) or convert it to coins (duplicate). Marks the egg hatched.
+ */
+export async function hatchEgg(userId: string, eggId: string): Promise<HatchResult> {
+  const fail = (error: string): HatchResult => ({
+    ok: false,
+    error,
+    petId: '',
+    petName: '',
+    rarity: 'common',
+    isDuplicate: false,
+    coins: 0,
+  });
+
+  // Claim the egg (must exist, be ours, and be unhatched).
+  const { data: egg } = await supabase
+    .from('eggs')
+    .select('id, type, hatched_at')
+    .eq('id', eggId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!egg) return fail('Egg not found.');
+  if (egg.hatched_at) return fail('That egg was already hatched.');
+
+  const { data: owned } = await supabase
+    .from('user_pets')
+    .select('pet_id')
+    .eq('user_id', userId);
+  const ownedIds = new Set((owned ?? []).map((r) => r.pet_id));
+
+  const roll = rollHatch(egg.type as EggType);
+  const isDuplicate = ownedIds.has(roll.petId);
+  const def = getPet(roll.petId);
+
+  if (isDuplicate) {
+    const coins = duplicateCoins(roll.rarity);
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('coins')
+      .eq('id', userId)
+      .single();
+    await supabase
+      .from('profiles')
+      .update({ coins: (prof?.coins ?? 0) + coins })
+      .eq('id', userId);
+    await supabase.from('eggs').update({ hatched_at: new Date().toISOString() }).eq('id', eggId);
+    return {
+      ok: true,
+      petId: roll.petId,
+      petName: def?.name ?? roll.petId,
+      rarity: roll.rarity,
+      isDuplicate: true,
+      coins,
+    };
+  }
+
+  // New pet → add to collection.
+  const { error: insertError } = await supabase.from('user_pets').insert({
+    user_id: userId,
+    pet_id: roll.petId,
+    level: 1,
+    xp: 0,
+    stage: 'juvenile' satisfies Stage,
+  });
+  if (insertError) return fail(insertError.message);
+
+  await supabase.from('eggs').update({ hatched_at: new Date().toISOString() }).eq('id', eggId);
+  return {
+    ok: true,
+    petId: roll.petId,
+    petName: def?.name ?? roll.petId,
+    rarity: roll.rarity,
+    isDuplicate: false,
+    coins: 0,
+  };
+}
+
+/** One unhatched egg id of the requested type, if any (for the hatch flow). */
+export async function getNextEggId(userId: string, type: EggType): Promise<string | null> {
+  const { data } = await supabase
+    .from('eggs')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .is('hatched_at', null)
+    .order('earned_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/** Dev helper backing the reference "Add 10 eggs (testing)" button. */
+export async function addTestEggs(userId: string, count = 10, type: EggType = 'standard') {
+  const rows = Array.from({ length: count }, () => ({ user_id: userId, type }));
+  await supabase.from('eggs').insert(rows);
+}
+
+// ---------------------------------------------------------------------------
 // Finish workout — full reward flow
 // ---------------------------------------------------------------------------
 
@@ -294,6 +452,9 @@ export interface FinishWorkoutResult {
   // Streak + challenge.
   streakCurrent: number;
   challengeCompleted: boolean;
+  // Eggs earned this finish.
+  eggsStandard: number;
+  eggsEpic: number;
 }
 
 export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWorkoutResult> {
@@ -310,6 +471,8 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
     stageChanged: false,
     streakCurrent: 0,
     challengeCompleted: false,
+    eggsStandard: 0,
+    eggsEpic: 0,
   };
   const fail = (error: string): FinishWorkoutResult => ({ ...base, error });
 
@@ -343,14 +506,21 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
   // 2. Load profile + equipped pet + today's challenge.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('coins, current_streak, longest_streak, last_workout_date, equipped_pet_id')
+    .select(
+      'coins, current_streak, longest_streak, last_workout_date, equipped_pet_id, weekly_egg_week',
+    )
     .eq('id', input.userId)
     .single();
   if (!profile) return fail('Profile not found.');
 
   const p = profile as Pick<
     Profile,
-    'coins' | 'current_streak' | 'longest_streak' | 'last_workout_date' | 'equipped_pet_id'
+    | 'coins'
+    | 'current_streak'
+    | 'longest_streak'
+    | 'last_workout_date'
+    | 'equipped_pet_id'
+    | 'weekly_egg_week'
   >;
 
   const challengeRow = await ensureTodayChallenge(input.userId);
@@ -376,6 +546,34 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
       bonusCoins = REWARDS.dailyChallenge.coins;
       bonusXp = REWARDS.dailyChallenge.xp;
     }
+  }
+
+  // 4b. Egg earning rules (streak milestones + weekly goal).
+  const eggsToInsert: { user_id: string; type: EggType }[] = [];
+  let eggsStandard = 0;
+  let eggsEpic = 0;
+  let weeklyEggWeek = p.weekly_egg_week ?? null;
+
+  if (streak.isNewWorkoutDay && streak.current === EGG_RULES.streakForStandardEgg) {
+    eggsToInsert.push({ user_id: input.userId, type: 'standard' });
+    eggsStandard += 1;
+  }
+  if (streak.isNewWorkoutDay && streak.current === EGG_RULES.streakForEpicEgg) {
+    eggsToInsert.push({ user_id: input.userId, type: 'epic' });
+    eggsEpic += 1;
+  }
+
+  const currentWeek = weekKey();
+  if (p.weekly_egg_week !== currentWeek) {
+    const weekCount = await countWorkoutsThisWeek(input.userId);
+    if (weekCount >= EGG_RULES.workoutsPerWeekForEgg) {
+      eggsToInsert.push({ user_id: input.userId, type: 'standard' });
+      eggsStandard += 1;
+      weeklyEggWeek = currentWeek;
+    }
+  }
+  if (eggsToInsert.length > 0) {
+    await supabase.from('eggs').insert(eggsToInsert);
   }
 
   // 5. Totals.
@@ -411,7 +609,7 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
     }
   }
 
-  // 7. Persist profile updates (coins + streak + last workout date).
+  // 7. Persist profile updates (coins + streak + last workout date + weekly egg).
   await supabase
     .from('profiles')
     .update({
@@ -419,6 +617,7 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
       current_streak: streak.current,
       longest_streak: streak.longest,
       last_workout_date: today,
+      weekly_egg_week: weeklyEggWeek,
     })
     .eq('id', input.userId);
 
@@ -429,5 +628,7 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
     xpApplied: totalXp,
     streakCurrent: streak.current,
     challengeCompleted,
+    eggsStandard,
+    eggsEpic,
   };
 }
