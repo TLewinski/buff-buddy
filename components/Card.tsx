@@ -5,12 +5,12 @@
  */
 
 import React from 'react';
-import { StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
 import { colors, radius, shadow, spacing } from '../theme';
 
 interface Props extends ViewProps {
   children: React.ReactNode;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   /** Use the slightly brighter raised surface (e.g. inputs). */
   raised?: boolean;
   padded?: boolean;

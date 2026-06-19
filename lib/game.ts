@@ -15,7 +15,7 @@ import {
   type DailyChallengeDef,
   type Stage,
 } from '../config/economy';
-import { getPet } from '../pets/registry';
+import { getPet, PETS } from '../pets/registry';
 import type { DailyChallenge, Profile, UserPet } from './database.types';
 import {
   applyXp,
@@ -46,6 +46,93 @@ export async function grantStarter(userId: string, petId: string): Promise<{ ok:
     .eq('id', userId);
   if (profError) return { ok: false, error: profError.message };
 
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Collection (Pets screen)
+// ---------------------------------------------------------------------------
+
+export interface CollectionPet {
+  petId: string;
+  name: string;
+  rarity: string;
+  source: 'starter' | 'egg';
+  blurb: string;
+  owned: boolean;
+  equipped: boolean;
+  level: number | null;
+  xp: number | null;
+  stage: Stage | null;
+  progress: XpProgress | null;
+}
+
+export interface Collection {
+  pets: CollectionPet[];
+  ownedCount: number;
+  total: number;
+  equippedPetId: string | null;
+}
+
+/** The full registry annotated with this user's ownership / equip state. */
+export async function fetchCollection(userId: string): Promise<Collection> {
+  const [{ data: profile }, { data: ownedRows }] = await Promise.all([
+    supabase.from('profiles').select('equipped_pet_id').eq('id', userId).single(),
+    supabase.from('user_pets').select('pet_id, level, xp, stage').eq('user_id', userId),
+  ]);
+
+  const equippedPetId = profile?.equipped_pet_id ?? null;
+  const ownedById = new Map((ownedRows ?? []).map((r) => [r.pet_id, r]));
+
+  const pets: CollectionPet[] = Object.values(PETS).map((def) => {
+    const row = ownedById.get(def.id);
+    return {
+      petId: def.id,
+      name: def.name,
+      rarity: def.rarity,
+      source: def.source,
+      blurb: def.blurb,
+      owned: !!row,
+      equipped: equippedPetId === def.id,
+      level: row?.level ?? null,
+      xp: row?.xp ?? null,
+      stage: (row?.stage as Stage) ?? null,
+      progress: row ? xpProgress(row.level, row.xp) : null,
+    };
+  });
+
+  return {
+    pets,
+    ownedCount: ownedById.size,
+    total: pets.length,
+    equippedPetId,
+  };
+}
+
+/** Detail for one pet (owned info + equip state). */
+export async function fetchPetDetail(userId: string, petId: string): Promise<CollectionPet | null> {
+  const collection = await fetchCollection(userId);
+  return collection.pets.find((p) => p.petId === petId) ?? null;
+}
+
+/** Equip an owned pet. No-op-safe; rejects pets the user doesn't own. */
+export async function equipPet(
+  userId: string,
+  petId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: owned } = await supabase
+    .from('user_pets')
+    .select('pet_id')
+    .eq('user_id', userId)
+    .eq('pet_id', petId)
+    .maybeSingle();
+  if (!owned) return { ok: false, error: "You don't own this pet yet." };
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ equipped_pet_id: petId })
+    .eq('id', userId);
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 

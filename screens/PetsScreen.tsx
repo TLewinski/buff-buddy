@@ -1,52 +1,103 @@
 /**
  * screens/PetsScreen.tsx
  *
- * Phase 1: collection grid shell driven by the pet registry. Owned vs.
- * locked-silhouette state, detail, and equip land in Phase 5.
+ * Collection grid: every registry pet shown as owned (sprite + level + rarity,
+ * with an ACTIVE badge for the equipped one) or a locked silhouette. Tap a pet
+ * for its detail screen.
  */
 
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
-import { PETS } from '../pets/registry';
+import { fetchCollection, type Collection, type CollectionPet } from '../lib/game';
+import type { RootStackParamList } from '../navigation/types';
 import { PetSprite } from '../pets/PetSprite';
+import { useAuthStore } from '../state/authStore';
 import { colors, radius, rarityColors, spacing, typography } from '../theme';
 
-// Phase 1 placeholder: only the starter bear is "owned".
-const OWNED = new Set(['bear']);
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function PetsScreen() {
-  const pets = Object.values(PETS);
+  const navigation = useNavigation<Nav>();
+  const userId = useAuthStore((s) => s.user?.id);
+  const [collection, setCollection] = useState<Collection | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!userId) return;
+      fetchCollection(userId)
+        .then((c) => active && setCollection(c))
+        .catch(() => active && setCollection(null));
+      return () => {
+        active = false;
+      };
+    }, [userId]),
+  );
+
   return (
     <Screen eyebrow="Your Collection" title="Pets">
-      <Text style={styles.count}>COLLECTION · {OWNED.size}/{pets.length}</Text>
-      <View style={styles.grid}>
-        {pets.map((pet) => {
-          const owned = OWNED.has(pet.id);
-          return (
-            <Card key={pet.id} style={styles.cell} padded={false}>
-              <View style={styles.cellInner}>
-                {owned ? (
-                  <PetSprite petId={pet.id} stage="juvenile" size={84} />
-                ) : (
-                  <View style={styles.locked}>
-                    <Text style={styles.lockedMark}>?</Text>
-                  </View>
-                )}
-                <Text style={[typography.caption, styles.rarity, { color: rarityColors[pet.rarity] }]}>
-                  {pet.rarity.toUpperCase()}
-                </Text>
-              </View>
-            </Card>
-          );
-        })}
-      </View>
+      {!collection ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.sage} />
+        </View>
+      ) : (
+        <>
+          <Text style={styles.count}>
+            COLLECTION · {collection.ownedCount}/{collection.total}
+          </Text>
+          <View style={styles.grid}>
+            {collection.pets.map((pet) => (
+              <PetCell
+                key={pet.petId}
+                pet={pet}
+                onPress={() => navigation.navigate('PetDetail', { petId: pet.petId })}
+              />
+            ))}
+          </View>
+        </>
+      )}
     </Screen>
   );
 }
 
+function PetCell({ pet, onPress }: { pet: CollectionPet; onPress: () => void }) {
+  return (
+    <Pressable style={styles.cell} onPress={onPress}>
+      <Card style={[styles.cellCard, pet.equipped && styles.cellActive]} padded={false}>
+        {pet.equipped ? (
+          <View style={styles.activeBadge}>
+            <Text style={styles.activeText}>ACTIVE</Text>
+          </View>
+        ) : null}
+        <View style={styles.cellInner}>
+          {pet.owned ? (
+            <PetSprite petId={pet.petId} stage={pet.stage ?? 'juvenile'} size={84} />
+          ) : (
+            <View style={styles.locked}>
+              <Text style={styles.lockedMark}>?</Text>
+            </View>
+          )}
+          <Text style={styles.cellName}>
+            {pet.owned ? `${pet.name}  ·  Lv ${pet.level}` : '???'}
+          </Text>
+          <Text style={[typography.caption, { color: rarityColors[pet.rarity as never] }]}>
+            {pet.rarity.toUpperCase()}
+          </Text>
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  loading: {
+    paddingTop: spacing.xxxl,
+    alignItems: 'center',
+  },
   count: {
     ...typography.label,
     marginBottom: spacing.md,
@@ -58,6 +109,28 @@ const styles = StyleSheet.create({
   },
   cell: {
     width: '47%',
+  },
+  cellCard: {
+    overflow: 'hidden',
+  },
+  cellActive: {
+    borderColor: colors.sage,
+    borderWidth: 1.5,
+  },
+  activeBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    zIndex: 1,
+    backgroundColor: colors.sage,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  activeText: {
+    ...typography.caption,
+    color: colors.background,
+    fontWeight: '800',
   },
   cellInner: {
     alignItems: 'center',
@@ -75,7 +148,9 @@ const styles = StyleSheet.create({
     ...typography.title,
     color: colors.textFaint,
   },
-  rarity: {
+  cellName: {
+    ...typography.label,
+    color: colors.text,
     marginTop: spacing.sm,
   },
 });

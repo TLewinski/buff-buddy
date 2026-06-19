@@ -9,6 +9,7 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import { PetDetailScreen } from '../screens/PetDetailScreen';
 import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
 import { WorkoutSessionScreen } from '../screens/WorkoutSessionScreen';
 import { colors } from '../theme';
@@ -33,6 +34,7 @@ export function AppNavigator() {
         component={WorkoutHistoryScreen}
         options={{ presentation: 'card' }}
       />
+      <Stack.Screen name="PetDetail" component={PetDetailScreen} options={{ presentation: 'card' }} />
     </Stack.Navigator>
   );
 }

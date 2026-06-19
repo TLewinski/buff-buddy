@@ -66,7 +66,14 @@ Foundation** is complete:
 - ✅ **Home** fully wired to real data: floating idle pet + sage aura, name /
   stage / level / XP bar, stat cards, live daily challenge, Start Workout
 
-Phases 5–7 (pets, eggs, store) follow.
+**Phase 5 — Pets** is complete:
+
+- ✅ Collection grid: every registry pet shown owned (sprite + level + rarity,
+  ACTIVE badge for the equipped one) or as a locked silhouette
+- ✅ Pet detail: hero sprite, rarity, stage, level + XP bar, blurb
+- ✅ Equip action (owned pets), with the choice reflected on Home + grid
+
+Phases 6–7 (eggs, store) follow.
 
 ### Database setup (required for Phase 2+)
 

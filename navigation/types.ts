@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Main: undefined;
   WorkoutSession: { programId: string; programName: string };
   WorkoutHistory: undefined;
+  PetDetail: { petId: string };
 };
 
 /** Bottom tabs shown inside the root "Main" screen. */
