@@ -12,8 +12,8 @@ import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Splash } from './components/Splash';
+import { AppNavigator } from './navigation/AppNavigator';
 import { AuthNavigator } from './navigation/AuthNavigator';
-import { MainTabs } from './navigation/RootNavigator';
 import { useAuthStore } from './state/authStore';
 import { navTheme } from './theme';
 
@@ -24,7 +24,7 @@ function Root() {
   useEffect(() => initialize(), [initialize]);
 
   if (status === 'loading') return <Splash />;
-  return status === 'signedIn' ? <MainTabs /> : <AuthNavigator />;
+  return status === 'signedIn' ? <AppNavigator /> : <AuthNavigator />;
 }
 
 export default function App() {

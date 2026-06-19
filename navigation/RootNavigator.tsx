@@ -16,14 +16,7 @@ import { PetsScreen } from '../screens/PetsScreen';
 import { StoreScreen } from '../screens/StoreScreen';
 import { WorkoutsScreen } from '../screens/WorkoutsScreen';
 import { colors, shadow, spacing } from '../theme';
-
-export type RootTabParamList = {
-  Home: undefined;
-  Workouts: undefined;
-  Pets: undefined;
-  Hatch: undefined;
-  Store: undefined;
-};
+import type { RootTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 

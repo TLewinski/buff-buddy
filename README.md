@@ -42,7 +42,20 @@ Foundation** is complete:
   later via `signInWithProvider(...)` with no restructuring
 - ✅ Full data-model migrations proposed with RLS (`supabase/migrations/`)
 
-Phases 3–7 (workouts, progression, pets, eggs, store) follow.
+**Phase 3 — Workouts + history** is complete:
+
+- ✅ Program list loaded from the seeded DB (loading / empty / error states)
+- ✅ Live session: elapsed timer, each exercise with 3 sets (weight + reps
+  inputs and a per-set "done" toggle), launched as a full-screen modal
+- ✅ Finish → persists the workout + every logged set to Supabase and credits
+  the coins reward, with a completion summary
+- ✅ History view: all past workouts (program, date, duration, set count),
+  newest first, with pull-to-refresh
+
+Phases 4–7 (progression, pets, eggs, store) follow.
+
+> XP/streak/leveling are credited to your pet in Phase 4; Phase 3 credits the
+> coins reward and persists the full session.
 
 ### Database setup (required for Phase 2+)
 

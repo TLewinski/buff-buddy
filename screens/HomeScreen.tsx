@@ -7,18 +7,22 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
 import { REWARDS } from '../config/economy';
+import type { RootTabParamList } from '../navigation/types';
 import { PetSprite } from '../pets/PetSprite';
 import { useAuthStore } from '../state/authStore';
 import { colors, radius, spacing, typography } from '../theme';
 
 export function HomeScreen() {
   const signOut = useAuthStore((s) => s.signOut);
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
   return (
     <Screen
@@ -65,7 +69,7 @@ export function HomeScreen() {
 
       <Button
         label={`Start Workout   ·   +${REWARDS.workout.xp} XP  +${REWARDS.workout.coins} Coins`}
-        onPress={() => {}}
+        onPress={() => navigation.navigate('Workouts')}
         style={{ marginTop: spacing.lg }}
       />
     </Screen>
