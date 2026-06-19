@@ -21,6 +21,7 @@ import {
 import { getPet, PETS } from '../pets/registry';
 import type { DailyChallenge, Profile } from './database.types';
 import { duplicateCoins, rollHatch } from './hatch';
+import { consumeBoostsForWorkout } from './store';
 import {
   applyXp,
   challengeForDate,
@@ -576,9 +577,10 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
     await supabase.from('eggs').insert(eggsToInsert);
   }
 
-  // 5. Totals.
-  const totalCoins = REWARDS.workout.coins + bonusCoins;
-  const totalXp = REWARDS.workout.xp + bonusXp;
+  // 5. Totals (with consumable boost multipliers applied).
+  const boost = await consumeBoostsForWorkout(input.userId);
+  const totalCoins = Math.round((REWARDS.workout.coins + bonusCoins) * boost.coins);
+  const totalXp = Math.round((REWARDS.workout.xp + bonusXp) * boost.xp);
 
   // 6. Apply XP to the equipped pet.
   let petResult: FinishWorkoutResult = { ...base };

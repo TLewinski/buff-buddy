@@ -83,9 +83,16 @@ Foundation** is complete:
 - ✅ Hatch screen shows unhatched eggs + live "how to earn" progress, plus a
   dev-only "Add 10 eggs" button for testing
 
-Phase 7 (store) follows.
+**Phase 7 — Store** is complete — **all 7 build phases done**:
 
-> Phase 6 adds `0003_weekly_egg.sql` — apply it alongside the earlier migrations.
+- ✅ Tabbed store (Hats / Glasses / Outfits / Auras / Boosts) with coin balance
+- ✅ Purchase flow with confirmation + insufficient-funds handling
+- ✅ Cosmetics are permanent unlocks; equip/unequip (one per category)
+- ✅ Boosts are consumables that become active and multiply workout rewards
+  (2× XP next workout / 24h, 2× coins next workout)
+
+> Phases 6–7 add `0003_weekly_egg.sql` and `0004_active_boosts.sql` — apply them
+> alongside the earlier migrations (run all four in order).
 
 ### Database setup (required for Phase 2+)
 
