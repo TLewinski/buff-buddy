@@ -1,8 +1,9 @@
 /**
  * navigation/RootNavigator.tsx
  *
- * Bottom tab bar: Home · Workouts · Pets · Hatch · Store.
- * Active state uses the sage palette with a soft glow behind the active icon.
+ * The main app tab bar (shown when signed in): Home · Workouts · Pets · Hatch ·
+ * Store. Active state uses the sage palette with a soft glow behind the active
+ * icon. The signed-out / loading gating lives in App.tsx.
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -49,7 +50,7 @@ function TabButton({ children, onPress, accessibilityState }: BottomTabBarButton
   );
 }
 
-export function RootNavigator() {
+export function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

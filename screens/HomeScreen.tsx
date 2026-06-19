@@ -6,18 +6,35 @@
  * Real data wiring lands in Phase 4.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
 import { REWARDS } from '../config/economy';
 import { PetSprite } from '../pets/PetSprite';
+import { useAuthStore } from '../state/authStore';
 import { colors, radius, spacing, typography } from '../theme';
 
 export function HomeScreen() {
+  const signOut = useAuthStore((s) => s.signOut);
+
   return (
-    <Screen eyebrow="Workout Pet" title="Bear · Lvl 1">
+    <Screen
+      eyebrow="Workout Pet"
+      title="Bear · Lvl 1"
+      headerRight={
+        <Pressable
+          onPress={signOut}
+          hitSlop={10}
+          accessibilityLabel="Sign out"
+          style={styles.signOut}
+        >
+          <Ionicons name="log-out-outline" size={22} color={colors.textMuted} />
+        </Pressable>
+      }
+    >
       <Card style={styles.hero}>
         <Text style={styles.stageLabel}>JUVENILE · STAGE 1</Text>
         <PetSprite petId="bear" stage="juvenile" size={220} showAura />
@@ -65,6 +82,16 @@ function StatCard({ value, label }: { value: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  signOut: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   hero: {
     alignItems: 'center',
   },

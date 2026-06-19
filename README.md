@@ -32,7 +32,34 @@ Foundation** is complete:
 - ✅ [`ART_MANIFEST.md`](./ART_MANIFEST.md) listing all 27 artworks to commission
 - ✅ App runs with empty-but-navigable, fully-styled screens
 
-Phases 2–7 (auth, workouts, progression, pets, eggs, store) follow.
+**Phase 2 — Auth (email/password)** is complete:
+
+- ✅ Sign up, log in, log out with validation + error states
+- ✅ Session persistence (AsyncStorage) — logins survive app restart
+- ✅ Auth gate: loading splash → auth flow when signed out → main tabs when in
+- ✅ Profile bootstrap on first login (`profiles` row created with starting values)
+- ✅ Provider-agnostic auth layer (`lib/auth.ts`) — Google/Apple OAuth drop in
+  later via `signInWithProvider(...)` with no restructuring
+- ✅ Full data-model migrations proposed with RLS (`supabase/migrations/`)
+
+Phases 3–7 (workouts, progression, pets, eggs, store) follow.
+
+### Database setup (required for Phase 2+)
+
+Apply the SQL migrations to your Supabase project once:
+
+1. Supabase Dashboard → **SQL Editor**.
+2. Run [`supabase/migrations/0001_initial_schema.sql`](./supabase/migrations/0001_initial_schema.sql)
+   (tables + Row Level Security).
+3. Run [`supabase/migrations/0002_seed_programs.sql`](./supabase/migrations/0002_seed_programs.sql)
+   (programs + exercises seed data).
+
+(Or, with the Supabase CLI linked to your project: `supabase db push`.)
+
+> **Email confirmation:** by default Supabase requires email confirmation on
+> sign-up. For quick local testing you can disable it under
+> **Authentication → Providers → Email → Confirm email**, or just confirm via
+> the link sent to your inbox before logging in.
 
 ---
 
