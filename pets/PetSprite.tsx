@@ -8,8 +8,14 @@
  * dropping in real assets never touches feature screens.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 import type { Rarity, Stage } from '../config/economy';
 import { colors, radius, rarityColors, spacing, typography } from '../theme';
@@ -22,6 +28,8 @@ interface Props {
   size?: number;
   /** Render the sage glow aura beneath the sprite (Home / detail hero). */
   showAura?: boolean;
+  /** Gentle floating idle bob (Home hero). */
+  float?: boolean;
 }
 
 const STAGE_LABEL: Record<Stage, string> = {
@@ -37,8 +45,27 @@ const STAGE_SCALE: Record<Stage, number> = {
   adult: 0.86,
 };
 
-export function PetSprite({ petId, stage = 'juvenile', size = 200, showAura = false }: Props) {
+export function PetSprite({
+  petId,
+  stage = 'juvenile',
+  size = 200,
+  showAura = false,
+  float = false,
+}: Props) {
   const pet = getPet(petId);
+  const offset = useSharedValue(0);
+
+  const idle = pet?.art[stage].idle;
+  useEffect(() => {
+    if (!float || !idle) return;
+    offset.value = withRepeat(withTiming(1, { duration: idle.durationMs }), -1, true);
+  }, [float, idle, offset]);
+
+  const floatStyle = useAnimatedStyle(() => {
+    const amp = idle?.floatPx ?? 0;
+    return { transform: [{ translateY: -offset.value * amp }] };
+  });
+
   if (!pet) {
     return <View style={[styles.frame, { width: size, height: size }]} />;
   }
@@ -62,12 +89,14 @@ export function PetSprite({ petId, stage = 'juvenile', size = 200, showAura = fa
         </Svg>
       )}
 
-      {art.image ? (
-        // Real artwork path — used once assets are commissioned and registered.
-        <Image source={art.image} style={{ width: inner, height: inner }} resizeMode="contain" />
-      ) : (
-        <PlaceholderBody size={inner} tint={tint} name={pet.name} stage={stage} />
-      )}
+      <Animated.View style={floatStyle}>
+        {art.image ? (
+          // Real artwork path — used once assets are commissioned and registered.
+          <Image source={art.image} style={{ width: inner, height: inner }} resizeMode="contain" />
+        ) : (
+          <PlaceholderBody size={inner} tint={tint} name={pet.name} stage={stage} />
+        )}
+      </Animated.View>
     </View>
   );
 }

@@ -14,17 +14,22 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Splash } from './components/Splash';
 import { AppNavigator } from './navigation/AppNavigator';
 import { AuthNavigator } from './navigation/AuthNavigator';
+import { StarterSelectScreen } from './screens/StarterSelectScreen';
 import { useAuthStore } from './state/authStore';
 import { navTheme } from './theme';
 
 function Root() {
   const status = useAuthStore((s) => s.status);
+  const profile = useAuthStore((s) => s.profile);
   const initialize = useAuthStore((s) => s.initialize);
 
   useEffect(() => initialize(), [initialize]);
 
   if (status === 'loading') return <Splash />;
-  return status === 'signedIn' ? <AppNavigator /> : <AuthNavigator />;
+  if (status !== 'signedIn') return <AuthNavigator />;
+  // First-run onboarding: pick a starter pet before entering the app.
+  if (profile && !profile.equipped_pet_id) return <StarterSelectScreen />;
+  return <AppNavigator />;
 }
 
 export default function App() {

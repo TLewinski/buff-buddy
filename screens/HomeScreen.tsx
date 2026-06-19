@@ -1,77 +1,137 @@
 /**
  * screens/HomeScreen.tsx
  *
- * Phase 1: navigable shell with the real layout (equipped-pet hero, stat cards,
- * daily challenge, Start Workout CTA) rendered against placeholder/static data.
- * Real data wiring lands in Phase 4.
+ * The live home dashboard: equipped pet (floating idle + sage aura), name /
+ * stage / level / XP bar, stat cards (streak, workouts, pets), the daily
+ * challenge with progress, and the Start Workout CTA. Reloads on focus so it
+ * reflects rewards earned after a session.
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
-import { REWARDS } from '../config/economy';
+import { REWARDS, type Stage } from '../config/economy';
+import { fetchHomeData, type HomeData } from '../lib/game';
 import type { RootTabParamList } from '../navigation/types';
 import { PetSprite } from '../pets/PetSprite';
 import { useAuthStore } from '../state/authStore';
 import { colors, radius, spacing, typography } from '../theme';
 
+const NEXT_STAGE: Record<Stage, string> = {
+  juvenile: 'Teen',
+  teen: 'Adult',
+  adult: 'Max',
+};
+
 export function HomeScreen() {
   const signOut = useAuthStore((s) => s.signOut);
+  const userId = useAuthStore((s) => s.user?.id);
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
 
+  const [data, setData] = useState<HomeData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!userId) return;
+      setError(null);
+      fetchHomeData(userId)
+        .then((d) => active && setData(d))
+        .catch((e) => active && setError(e.message ?? 'Could not load.'));
+      return () => {
+        active = false;
+      };
+    }, [userId]),
+  );
+
+  const signOutBtn = (
+    <Pressable onPress={signOut} hitSlop={10} accessibilityLabel="Sign out" style={styles.signOut}>
+      <Ionicons name="log-out-outline" size={22} color={colors.textMuted} />
+    </Pressable>
+  );
+
+  const pet = data?.pet;
+  const title = pet ? `${pet.name} · Lvl ${pet.level}` : 'Buff Buddy';
+
   return (
-    <Screen
-      eyebrow="Workout Pet"
-      title="Bear · Lvl 1"
-      headerRight={
-        <Pressable
-          onPress={signOut}
-          hitSlop={10}
-          accessibilityLabel="Sign out"
-          style={styles.signOut}
-        >
-          <Ionicons name="log-out-outline" size={22} color={colors.textMuted} />
-        </Pressable>
-      }
-    >
-      <Card style={styles.hero}>
-        <Text style={styles.stageLabel}>JUVENILE · STAGE 1</Text>
-        <PetSprite petId="bear" stage="juvenile" size={220} showAura />
-        <View style={styles.xpRow}>
-          <Text style={typography.caption}>XP · 0</Text>
-          <Text style={typography.caption}>Next: Teen</Text>
+    <Screen eyebrow="Workout Pet" title={title} headerRight={signOutBtn}>
+      {error ? (
+        <Card>
+          <Text style={typography.subheading}>Couldn't load your data</Text>
+          <Text style={[typography.bodyMuted, { marginTop: spacing.sm }]}>{error}</Text>
+        </Card>
+      ) : !data ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.sage} />
         </View>
-        <View style={styles.xpTrack}>
-          <View style={[styles.xpFill, { width: '0%' }]} />
-        </View>
-      </Card>
+      ) : (
+        <>
+          <Card style={styles.hero}>
+            {pet ? (
+              <>
+                <Text style={styles.stageLabel}>{pet.stage.toUpperCase()}</Text>
+                <PetSprite petId={pet.petId} stage={pet.stage} size={220} showAura float />
+                <View style={styles.xpRow}>
+                  <Text style={typography.caption}>XP · {pet.progress.current}</Text>
+                  <Text style={typography.caption}>Next: {NEXT_STAGE[pet.stage]}</Text>
+                </View>
+                <View style={styles.xpTrack}>
+                  <View style={[styles.xpFill, { width: `${pet.progress.ratio * 100}%` }]} />
+                </View>
+              </>
+            ) : (
+              <Text style={typography.bodyMuted}>No pet equipped.</Text>
+            )}
+          </Card>
 
-      <View style={styles.statRow}>
-        <StatCard value="0" label="Day Streak" />
-        <StatCard value="0" label="Workouts" />
-        <StatCard value="1" label="Pets" />
-      </View>
+          <View style={styles.statRow}>
+            <StatCard value={`${data.currentStreak}`} label="Day Streak" />
+            <StatCard value={`${data.totalWorkouts}`} label="Workouts" />
+            <StatCard value={`${data.petsOwned}`} label="Pets" />
+          </View>
 
-      <Card style={styles.challenge}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.challengeEyebrow}>DAILY CHALLENGE</Text>
-          <Text style={typography.subheading}>Complete 1 workout</Text>
-        </View>
-        <View style={styles.reward}>
-          <Text style={styles.rewardText}>+{REWARDS.dailyChallenge.xp} XP</Text>
-        </View>
-      </Card>
+          {data.challenge ? (
+            <Card style={styles.challenge}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.challengeEyebrow}>DAILY CHALLENGE</Text>
+                <Text style={typography.subheading}>{data.challenge.title}</Text>
+                <View style={styles.challengeTrack}>
+                  <View
+                    style={[
+                      styles.challengeFill,
+                      {
+                        width: `${Math.min(100, (data.challenge.progress / data.challenge.target) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[typography.caption, { marginTop: spacing.xs }]}>
+                  {data.challenge.progress}/{data.challenge.target} {data.challenge.unit}
+                </Text>
+              </View>
+              <View style={styles.reward}>
+                {data.challenge.completed ? (
+                  <Ionicons name="checkmark-circle" size={28} color={colors.sage} />
+                ) : (
+                  <Text style={styles.rewardText}>+{data.challenge.rewardXp} XP</Text>
+                )}
+              </View>
+            </Card>
+          ) : null}
 
-      <Button
-        label={`Start Workout   ·   +${REWARDS.workout.xp} XP  +${REWARDS.workout.coins} Coins`}
-        onPress={() => navigation.navigate('Workouts')}
-        style={{ marginTop: spacing.lg }}
-      />
+          <Button
+            label={`Start Workout   ·   +${REWARDS.workout.xp} XP  +${REWARDS.workout.coins} Coins`}
+            onPress={() => navigation.navigate('Workouts')}
+            style={{ marginTop: spacing.lg }}
+          />
+        </>
+      )}
     </Screen>
   );
 }
@@ -95,6 +155,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+  },
+  loading: {
+    paddingTop: spacing.xxxl,
+    alignItems: 'center',
   },
   hero: {
     alignItems: 'center',
@@ -149,7 +213,20 @@ const styles = StyleSheet.create({
     color: colors.purple,
     marginBottom: spacing.xs,
   },
+  challengeTrack: {
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
+  },
+  challengeFill: {
+    height: '100%',
+    backgroundColor: colors.purple,
+    borderRadius: radius.pill,
+  },
   reward: {
+    marginLeft: spacing.md,
     backgroundColor: colors.surfaceRaised,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

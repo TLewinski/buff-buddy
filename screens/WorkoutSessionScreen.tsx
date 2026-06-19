@@ -21,13 +21,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import type { Exercise } from '../lib/database.types';
 import { formatDuration } from '../lib/format';
-import { fetchProgramExercises, finishWorkout, type LoggedSet } from '../lib/workouts';
+import { finishWorkout, type FinishWorkoutResult } from '../lib/game';
+import { fetchProgramExercises, type LoggedSet } from '../lib/workouts';
 import type { RootStackParamList } from '../navigation/types';
+import { PetSprite } from '../pets/PetSprite';
 import { useAuthStore } from '../state/authStore';
 import { colors, radius, spacing, typography } from '../theme';
 
@@ -52,7 +55,9 @@ export function WorkoutSessionScreen() {
   const [sets, setSets] = useState<SetMap>({});
   const [elapsed, setElapsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [summary, setSummary] = useState<{ coins: number; xp: number; sets: number } | null>(null);
+  const [summary, setSummary] = useState<{ result: FinishWorkoutResult; setsLogged: number } | null>(
+    null,
+  );
 
   const startedAtRef = useRef(new Date().toISOString());
   const startMsRef = useRef(Date.now());
@@ -135,7 +140,7 @@ export function WorkoutSessionScreen() {
       return;
     }
     await refreshProfile();
-    setSummary({ coins: result.coinsAwarded, xp: result.xpEarned, sets: payload.length });
+    setSummary({ result, setsLogged: payload.length });
   }
 
   return (
@@ -229,25 +234,67 @@ export function WorkoutSessionScreen() {
 
       {summary && (
         <View style={styles.summaryOverlay}>
-          <Card style={styles.summaryCard}>
-            <Text style={styles.summaryEmoji}>💪</Text>
-            <Text style={styles.summaryTitle}>Workout Complete!</Text>
-            <Text style={styles.summaryMeta}>
-              {formatDuration(elapsed)} · {summary.sets} set{summary.sets === 1 ? '' : 's'} logged
-            </Text>
-            <View style={styles.rewardRow}>
-              <View style={styles.rewardPill}>
-                <Text style={[styles.rewardValue, { color: colors.gold }]}>+{summary.coins}</Text>
-                <Text style={styles.rewardLabel}>COINS</Text>
+          <Animated.View entering={ZoomIn.springify().damping(14)} style={{ alignSelf: 'stretch' }}>
+            <Card style={styles.summaryCard}>
+              {summary.result.stageChanged && summary.result.petId && summary.result.newStage ? (
+                <>
+                  <PetSprite
+                    petId={summary.result.petId}
+                    stage={summary.result.newStage}
+                    size={160}
+                    showAura
+                  />
+                  <Text style={[styles.summaryTitle, { color: colors.sage }]}>
+                    Evolved to {summary.result.newStage.toUpperCase()}!
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.summaryEmoji}>{summary.result.leveledUp ? '⭐️' : '💪'}</Text>
+                  <Text style={styles.summaryTitle}>
+                    {summary.result.leveledUp ? `Level ${summary.result.newLevel}!` : 'Workout Complete!'}
+                  </Text>
+                </>
+              )}
+
+              <Text style={styles.summaryMeta}>
+                {formatDuration(elapsed)} · {summary.setsLogged} set
+                {summary.setsLogged === 1 ? '' : 's'} logged
+              </Text>
+
+              <View style={styles.rewardRow}>
+                <View style={styles.rewardPill}>
+                  <Text style={[styles.rewardValue, { color: colors.gold }]}>
+                    +{summary.result.coinsAwarded}
+                  </Text>
+                  <Text style={styles.rewardLabel}>COINS</Text>
+                </View>
+                <View style={styles.rewardPill}>
+                  <Text style={[styles.rewardValue, { color: colors.sage }]}>
+                    +{summary.result.xpApplied}
+                  </Text>
+                  <Text style={styles.rewardLabel}>XP</Text>
+                </View>
               </View>
-              <View style={styles.rewardPill}>
-                <Text style={[styles.rewardValue, { color: colors.sage }]}>+{summary.xp}</Text>
-                <Text style={styles.rewardLabel}>XP</Text>
-              </View>
-            </View>
-            <Text style={styles.summaryHint}>XP applies to your pet once progression is unlocked.</Text>
-            <Button label="Done" onPress={() => navigation.goBack()} style={{ alignSelf: 'stretch' }} />
-          </Card>
+
+              {summary.result.challengeCompleted ? (
+                <Text style={[styles.summaryHint, { color: colors.purple }]}>
+                  ✨ Daily challenge complete — bonus included!
+                </Text>
+              ) : null}
+              {summary.result.streakCurrent > 0 ? (
+                <Text style={styles.summaryHint}>
+                  🔥 {summary.result.streakCurrent}-day streak
+                </Text>
+              ) : null}
+
+              <Button
+                label="Done"
+                onPress={() => navigation.goBack()}
+                style={{ alignSelf: 'stretch', marginTop: spacing.sm }}
+              />
+            </Card>
+          </Animated.View>
         </View>
       )}
     </KeyboardAvoidingView>

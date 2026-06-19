@@ -11,7 +11,6 @@
  * touches coins for now.
  */
 
-import { REWARDS } from '../config/economy';
 import type { Exercise, Program } from './database.types';
 import { supabase } from './supabase';
 
@@ -32,22 +31,6 @@ export interface WorkoutHistoryItem {
   startedAt: string;
   durationSeconds: number;
   setCount: number;
-}
-
-export interface FinishWorkoutInput {
-  userId: string;
-  programId: string;
-  startedAt: string;
-  durationSeconds: number;
-  sets: LoggedSet[];
-}
-
-export interface FinishWorkoutResult {
-  ok: boolean;
-  error?: string;
-  coinsAwarded: number;
-  /** Shown in the summary; applied to the equipped pet in Phase 4. */
-  xpEarned: number;
 }
 
 /** All programs with their exercises, both sorted by sort_order. */
@@ -77,52 +60,6 @@ export async function fetchProgramExercises(programId: string): Promise<Exercise
 
   if (error) throw new Error(error.message);
   return (data ?? []) as Exercise[];
-}
-
-/** Persist a completed session (workout + sets) and credit coins. */
-export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWorkoutResult> {
-  const fail = (error: string): FinishWorkoutResult => ({
-    ok: false,
-    error,
-    coinsAwarded: 0,
-    xpEarned: 0,
-  });
-
-  const { data: workout, error: workoutError } = await supabase
-    .from('workouts')
-    .insert({
-      user_id: input.userId,
-      program_id: input.programId,
-      started_at: input.startedAt,
-      duration_seconds: input.durationSeconds,
-    })
-    .select('id')
-    .single();
-
-  if (workoutError || !workout) return fail(workoutError?.message ?? 'Could not save workout.');
-
-  if (input.sets.length > 0) {
-    const rows = input.sets.map((s) => ({
-      workout_id: workout.id,
-      exercise_id: s.exerciseId,
-      set_index: s.setIndex,
-      weight: s.weight,
-      reps: s.reps,
-    }));
-    const { error: setsError } = await supabase.from('workout_sets').insert(rows);
-    if (setsError) return fail(setsError.message);
-  }
-
-  // Credit coins (read-modify-write; single-user rows so contention is a non-issue).
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('coins')
-    .eq('id', input.userId)
-    .single();
-  const newCoins = (prof?.coins ?? 0) + REWARDS.workout.coins;
-  await supabase.from('profiles').update({ coins: newCoins }).eq('id', input.userId);
-
-  return { ok: true, coinsAwarded: REWARDS.workout.coins, xpEarned: REWARDS.workout.xp };
 }
 
 /** All of a user's past workouts, newest first, with program name + set count. */

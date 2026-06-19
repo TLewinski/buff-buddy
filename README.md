@@ -52,10 +52,21 @@ Foundation** is complete:
 - ✅ History view: all past workouts (program, date, duration, set count),
   newest first, with pull-to-refresh
 
-Phases 4–7 (progression, pets, eggs, store) follow.
+**Phase 4 — Progression + Home** is complete:
 
-> XP/streak/leveling are credited to your pet in Phase 4; Phase 3 credits the
-> coins reward and persists the full session.
+- ✅ First-run **starter pick** (Bear / Gorilla / Turtle) → creates + equips a pet
+- ✅ XP/coins/**leveling** (multi-level rollover) and **evolution** stage
+  transitions (Juvenile → Teen → Adult) applied on workout finish
+- ✅ **Streak** logic (local-midnight aware: same day no-op, next day +1, gap
+  resets) with current + longest tracked
+- ✅ **Daily challenge** — deterministic daily rotation, progress tracked per
+  workout, completion bonus (+25 XP / +15 coins)
+- ✅ Workout completion summary shows real XP applied, level-ups, evolutions,
+  streak, and challenge bonus
+- ✅ **Home** fully wired to real data: floating idle pet + sage aura, name /
+  stage / level / XP bar, stat cards, live daily challenge, Start Workout
+
+Phases 5–7 (pets, eggs, store) follow.
 
 ### Database setup (required for Phase 2+)
 
