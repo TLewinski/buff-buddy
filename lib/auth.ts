@@ -28,6 +28,17 @@ function guard(): AuthResult | null {
   return isSupabaseConfigured ? null : { ok: false, error: NOT_CONFIGURED };
 }
 
+/** Turn raw Supabase/network errors into something a user can act on. */
+function friendlyError(message: string): string {
+  if (/failed to fetch|network request failed|load failed/i.test(message)) {
+    return (
+      "Couldn't reach the server. Check your internet connection, that your " +
+      'Supabase Project URL is correct, and that the project is not paused.'
+    );
+  }
+  return message;
+}
+
 export async function signUp(email: string, password: string): Promise<AuthResult> {
   const blocked = guard();
   if (blocked) return blocked;
@@ -36,7 +47,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
     email: email.trim(),
     password,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyError(error.message) };
 
   // When email confirmation is enabled, signUp returns a user but no session.
   const needsEmailConfirmation = !data.session && !!data.user;
@@ -51,7 +62,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     email: email.trim(),
     password,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyError(error.message) };
   return { ok: true };
 }
 

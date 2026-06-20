@@ -22,22 +22,38 @@ type Extra = { supabaseUrl?: string; supabaseAnonKey?: string };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
 
-const supabaseUrl = extra.supabaseUrl ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey =
-  extra.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+// Use `||` (not `??`): app.config.ts sets these to '' when the env is missing at
+// config-eval time, and an empty string should fall through to the runtime env.
+const supabaseUrl = (extra.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (
+  extra.supabaseAnonKey ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  ''
+).trim();
+
+/** True when the URL/key look like the un-edited .env.example placeholders. */
+const looksLikePlaceholder =
+  /YOUR-PROJECT|YOUR-ANON/i.test(supabaseUrl) || /YOUR-ANON/i.test(supabaseAnonKey);
+
+const hasValidUrl = /^https:\/\/.+\.supabase\.co/i.test(supabaseUrl);
 
 /**
- * True once real credentials are present. Screens can use this to show a
- * friendly "connect Supabase" state instead of crashing during Phase 1, before
- * the project owner has pasted in their keys.
+ * True once real credentials are present. Screens use this to show a friendly
+ * "connect Supabase" state instead of firing requests at a bogus host (which
+ * surfaces as a confusing "Failed to fetch" in the browser).
  */
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured =
+  Boolean(supabaseUrl && supabaseAnonKey) && hasValidUrl && !looksLikePlaceholder;
 
 if (!isSupabaseConfigured && __DEV__) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[supabase] Missing EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
-      'Copy .env.example to .env and fill in your project keys. See README.',
+    '[supabase] Not configured. ' +
+      (looksLikePlaceholder
+        ? 'Your .env still has the .env.example placeholder values — paste your real Project URL + anon key.'
+        : !hasValidUrl && supabaseUrl
+          ? `EXPO_PUBLIC_SUPABASE_URL ("${supabaseUrl}") is not a valid https://<ref>.supabase.co URL.`
+          : 'Set EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY in .env, then restart the dev server (env changes need a restart). See README.'),
   );
 }
 
