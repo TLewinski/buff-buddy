@@ -62,8 +62,13 @@ export function WorkoutSessionScreen() {
   const startedAtRef = useRef(new Date().toISOString());
   const startMsRef = useRef(Date.now());
 
-  // Load exercises for the chosen program.
+  // Load exercises for the chosen program. An empty workout (no program) has
+  // no preset exercises — just the timer.
   useEffect(() => {
+    if (!params.programId) {
+      setExercises([]);
+      return;
+    }
     let active = true;
     fetchProgramExercises(params.programId)
       .then((data) => active && setExercises(data))
@@ -173,6 +178,14 @@ export function WorkoutSessionScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {exercises.length === 0 ? (
+            <Card style={styles.exercise}>
+              <Text style={typography.subheading}>Empty workout</Text>
+              <Text style={[typography.bodyMuted, { marginTop: spacing.xs }]}>
+                The timer's running — train freely and finish when you're done.
+              </Text>
+            </Card>
+          ) : null}
           {exercises.map((ex) => (
             <Card key={ex.id} style={styles.exercise}>
               <Text style={typography.subheading}>{ex.name}</Text>

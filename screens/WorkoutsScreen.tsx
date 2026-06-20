@@ -12,6 +12,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
 import { fetchPrograms, type ProgramWithExercises } from '../lib/workouts';
@@ -42,7 +43,6 @@ export function WorkoutsScreen() {
     <Screen
       eyebrow="Train"
       title="Workouts"
-      subtitle="Pick a program to start a session."
       headerRight={
         <Pressable
           onPress={() => navigation.navigate('WorkoutHistory')}
@@ -54,6 +54,16 @@ export function WorkoutsScreen() {
         </Pressable>
       }
     >
+      <Text style={styles.sectionLabel}>QUICK START</Text>
+      <Button
+        label="Start an Empty Workout"
+        onPress={() =>
+          navigation.navigate('WorkoutSession', { programId: null, programName: 'Empty Workout' })
+        }
+      />
+
+      <Text style={[styles.sectionLabel, styles.templatesLabel]}>Templates</Text>
+
       {error ? (
         <Card style={styles.state}>
           <Text style={typography.subheading}>Couldn't load programs</Text>
@@ -114,6 +124,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+  },
+  sectionLabel: {
+    ...typography.label,
+    marginBottom: spacing.md,
+  },
+  templatesLabel: {
+    ...typography.heading,
+    color: colors.text,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
   loading: {
     paddingTop: spacing.xxxl,

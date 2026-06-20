@@ -431,7 +431,7 @@ export async function addTestEggs(userId: string, count = 10, type: EggType = 's
 
 export interface FinishWorkoutInput {
   userId: string;
-  programId: string;
+  programId: string | null;
   startedAt: string;
   durationSeconds: number;
   sets: LoggedSet[];

@@ -5,7 +5,7 @@
 /** Signed-in root stack (tabs + full-screen flows layered above them). */
 export type RootStackParamList = {
   Main: undefined;
-  WorkoutSession: { programId: string; programName: string };
+  WorkoutSession: { programId: string | null; programName: string };
   WorkoutHistory: undefined;
   PetDetail: { petId: string };
 };
