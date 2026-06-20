@@ -41,7 +41,14 @@ type SetState = { weight: string; reps: string; done: boolean };
 /** keyed by `${exerciseId}:${setIndex}` */
 type SetMap = Record<string, SetState>;
 
-const setKey = (exerciseId: string, setIndex: number) => `${exerciseId}:${setIndex}`;
+const setKey = (exerciseKey: string, setIndex: number) => `${exerciseKey}:${setIndex}`;
+
+/** Unified row for the session — template exercise (real id) or ad-hoc custom. */
+interface SessionExercise {
+  key: string;
+  exerciseId: string | null; // null for custom exercises
+  name: string;
+}
 
 export function WorkoutSessionScreen() {
   const navigation = useNavigation();
@@ -51,16 +58,41 @@ export function WorkoutSessionScreen() {
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   const [exercises, setExercises] = useState<Exercise[] | null>(null);
+  const [customExercises, setCustomExercises] = useState<SessionExercise[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sets, setSets] = useState<SetMap>({});
   const [elapsed, setElapsed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
   const [summary, setSummary] = useState<{ result: FinishWorkoutResult; setsLogged: number } | null>(
     null,
   );
 
   const startedAtRef = useRef(new Date().toISOString());
   const startMsRef = useRef(Date.now());
+  const customCounter = useRef(0);
+
+  // Template exercises + any custom ad-hoc ones, in display order.
+  const allExercises: SessionExercise[] = useMemo(
+    () => [
+      ...(exercises ?? []).map((ex) => ({ key: ex.id, exerciseId: ex.id, name: ex.name })),
+      ...customExercises,
+    ],
+    [exercises, customExercises],
+  );
+
+  function addExercise() {
+    const name = newName.trim();
+    if (!name) return;
+    customCounter.current += 1;
+    setCustomExercises((prev) => [
+      ...prev,
+      { key: `custom_${customCounter.current}`, exerciseId: null, name },
+    ]);
+    setNewName('');
+    setAdding(false);
+  }
 
   // Load exercises for the chosen program. An empty workout (no program) has
   // no preset exercises — just the timer.
@@ -117,13 +149,18 @@ export function WorkoutSessionScreen() {
       Alert.alert('Not signed in', 'Please sign in again.');
       return;
     }
+    const byKey = new Map(allExercises.map((ex) => [ex.key, ex]));
     const payload: LoggedSet[] = [];
-    for (const [key, s] of Object.entries(sets)) {
+    for (const [mapKey, s] of Object.entries(sets)) {
       const reps = Number(s.reps);
       if (!Number.isFinite(reps) || reps <= 0) continue;
-      const [exerciseId, idx] = key.split(':');
+      const idx = mapKey.slice(mapKey.lastIndexOf(':') + 1);
+      const exerciseKey = mapKey.slice(0, mapKey.lastIndexOf(':'));
+      const ex = byKey.get(exerciseKey);
+      if (!ex) continue;
       payload.push({
-        exerciseId,
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.name,
         setIndex: Number(idx),
         weight: Number(s.weight) || 0,
         reps,
@@ -178,16 +215,17 @@ export function WorkoutSessionScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {exercises.length === 0 ? (
+          {allExercises.length === 0 && !adding ? (
             <Card style={styles.exercise}>
               <Text style={typography.subheading}>Empty workout</Text>
               <Text style={[typography.bodyMuted, { marginTop: spacing.xs }]}>
-                The timer's running — train freely and finish when you're done.
+                The timer's running — add an exercise below, or just train freely and finish
+                when you're done.
               </Text>
             </Card>
           ) : null}
-          {exercises.map((ex) => (
-            <Card key={ex.id} style={styles.exercise}>
+          {allExercises.map((ex) => (
+            <Card key={ex.key} style={styles.exercise}>
               <Text style={typography.subheading}>{ex.name}</Text>
               <View style={styles.setsHeader}>
                 <Text style={[styles.colLabel, styles.colSet]}>SET</Text>
@@ -196,14 +234,14 @@ export function WorkoutSessionScreen() {
                 <View style={styles.colDone} />
               </View>
               {Array.from({ length: SETS_PER_EXERCISE }, (_, i) => {
-                const s = getSet(ex.id, i);
+                const s = getSet(ex.key, i);
                 return (
                   <View key={i} style={styles.setRow}>
                     <Text style={[styles.setIndex, styles.colSet]}>{i + 1}</Text>
                     <TextInput
                       style={[styles.input, styles.colInput, s.done && styles.inputDone]}
                       value={s.weight}
-                      onChangeText={(t) => updateSet(ex.id, i, { weight: t })}
+                      onChangeText={(t) => updateSet(ex.key, i, { weight: t })}
                       keyboardType="decimal-pad"
                       placeholder="0"
                       placeholderTextColor={colors.textFaint}
@@ -211,13 +249,13 @@ export function WorkoutSessionScreen() {
                     <TextInput
                       style={[styles.input, styles.colInput, s.done && styles.inputDone]}
                       value={s.reps}
-                      onChangeText={(t) => updateSet(ex.id, i, { reps: t })}
+                      onChangeText={(t) => updateSet(ex.key, i, { reps: t })}
                       keyboardType="number-pad"
                       placeholder="0"
                       placeholderTextColor={colors.textFaint}
                     />
                     <Pressable
-                      onPress={() => updateSet(ex.id, i, { done: !s.done })}
+                      onPress={() => updateSet(ex.key, i, { done: !s.done })}
                       hitSlop={8}
                       style={[styles.colDone, styles.doneBtn, s.done && styles.doneBtnOn]}
                     >
@@ -232,6 +270,41 @@ export function WorkoutSessionScreen() {
               })}
             </Card>
           ))}
+
+          {adding ? (
+            <Card style={styles.exercise}>
+              <Text style={[typography.label, { marginBottom: spacing.sm }]}>EXERCISE NAME</Text>
+              <TextInput
+                style={styles.nameInput}
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="e.g. Cable Fly"
+                placeholderTextColor={colors.textFaint}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={addExercise}
+              />
+              <View style={styles.composerRow}>
+                <Pressable
+                  onPress={() => {
+                    setAdding(false);
+                    setNewName('');
+                  }}
+                  style={styles.composerBtn}
+                >
+                  <Text style={styles.composerCancel}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={addExercise} style={[styles.composerBtn, styles.composerAdd]}>
+                  <Text style={styles.composerAddText}>Add</Text>
+                </Pressable>
+              </View>
+            </Card>
+          ) : (
+            <Pressable onPress={() => setAdding(true)} style={styles.addExerciseBtn}>
+              <Ionicons name="add" size={20} color={colors.sage} />
+              <Text style={styles.addExerciseText}>Add exercise</Text>
+            </Pressable>
+          )}
 
           <Text style={styles.loggedNote}>
             {loggedSetCount} set{loggedSetCount === 1 ? '' : 's'} logged
@@ -424,6 +497,56 @@ const styles = StyleSheet.create({
   doneBtnOn: {
     backgroundColor: colors.sage,
     borderColor: colors.sage,
+  },
+  addExerciseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    marginBottom: spacing.md,
+  },
+  addExerciseText: {
+    ...typography.subheading,
+    color: colors.sage,
+    marginLeft: spacing.xs,
+  },
+  nameInput: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    height: 48,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  composerRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  composerBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  composerCancel: {
+    ...typography.label,
+    color: colors.textMuted,
+  },
+  composerAdd: {
+    backgroundColor: colors.sage,
+  },
+  composerAddText: {
+    ...typography.label,
+    color: colors.background,
+    fontWeight: '800',
   },
   loggedNote: {
     ...typography.caption,

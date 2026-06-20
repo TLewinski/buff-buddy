@@ -494,6 +494,7 @@ export async function finishWorkout(input: FinishWorkoutInput): Promise<FinishWo
     const rows = input.sets.map((s) => ({
       workout_id: workout.id,
       exercise_id: s.exerciseId,
+      exercise_name: s.exerciseName,
       set_index: s.setIndex,
       weight: s.weight,
       reps: s.reps,

@@ -19,7 +19,10 @@ export interface ProgramWithExercises extends Program {
 }
 
 export interface LoggedSet {
-  exerciseId: string;
+  /** Real exercise id (template), or null for an ad-hoc custom exercise. */
+  exerciseId: string | null;
+  /** Display name — always set so custom exercises are recorded. */
+  exerciseName: string;
   setIndex: number;
   weight: number;
   reps: number;
